@@ -1,0 +1,72 @@
+---
+title: "Prepare data"
+format: html
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+theme_set(theme_light())
+library(countrycode)
+library(glottologR)
+```
+
+```{r}
+#| label: bii
+
+bii <- readRDS("raw/bii/long_data.rds") |> 
+  filter(year == 2020, variable == "bii") |> 
+  mutate(
+    ISO3 = str_extract(area_code, "[A-Z]{3}"),
+    country = countrycode(ISO3, "iso3c", "country.name.en"),
+    bii = value,
+    # Adjust BII when 1 to apply qlogis later.
+    bii_adj = ifelse(bii == 1, bii - 0.01, bii),
+    bii_logit = qlogis(bii_adj)
+  )
+
+bii_countries <- bii |> 
+  drop_na(country, bii)
+```
+
+```{r}
+#| label: bii-countries-mean
+
+bii_countries_mean <- bii |> 
+  summarise(
+    bii_mean = mean(bii),
+    bii_logit_mean = mean(bii_logit),
+    bii_logit_se = sd(bii_logit) / sqrt(n()),
+    .by = c(ISO3, country)
+  ) |>
+  arrange(country)
+
+write_csv(bii_countries_mean, "derived/bii-countries-mean.csv")
+```
+
+```{r}
+#| label: nlangs
+
+data("glot_aes")
+
+nlangs_countries <- glot_aes |> 
+  separate_longer_delim(Countries, ";") |> 
+  mutate(
+    country = countrycode(Countries, "iso2c", "country.name.en")
+  ) |> 
+  group_by(country) |> 
+  count(name = "n_langs")
+```
+
+```{r}
+#| label: bii-nlangs
+
+bii_nlangs <- left_join(bii_countries_mean, nlangs_countries)
+
+write_csv(bii_nlangs, "derived/bii-nlangs.csv")
+
+usethis::use_data(bii_nlangs, overwrite = TRUE)
+```
+
