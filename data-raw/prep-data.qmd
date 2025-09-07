@@ -57,7 +57,10 @@ nlangs_countries <- glot_aes |>
     country = countrycode(Countries, "iso2c", "country.name.en")
   ) |> 
   group_by(country) |> 
-  count(name = "n_langs")
+  count(name = "n_langs") |> 
+  mutate(
+    log_n_langs = log(n_langs)
+  )
 ```
 
 ```{r}
